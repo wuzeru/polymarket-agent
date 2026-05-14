@@ -26,6 +26,11 @@ export class VirtualBook {
    * Simulate buying `size` units of a token at market ask.
    * Walks ask levels, consuming from cheapest to most expensive.
    * Returns total cost; throws if insufficient depth.
+   *
+   * NOTE: This intentionally mutates `level.size` to deplete depth across
+   * multiple fills within the same scan. Each WS `refresh()` call restores
+   * depth from the live order book snapshot, so simulation within a scan
+   * correctly reflects the diminishing liquidity of a real trade.
    */
   consume(tokenId: string, size: number): number {
     const state = this.tokens.get(tokenId);

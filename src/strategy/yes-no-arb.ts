@@ -27,6 +27,9 @@ export class YesNoArbDetector extends BaseStrategy {
     this.feeCache.set(feeRate.tokenId, feeRate);
   }
 
+  /** Counter to guarantee unique signal IDs even within the same ms */
+  private signalCounter = 0;
+
   detect(cache: MarketCache): Signal[] {
     if (!config.yesNoArbEnabled) return [];
     if (this.markets.length === 0) return [];
@@ -76,7 +79,7 @@ export class YesNoArbDetector extends BaseStrategy {
       const maxSize = Math.min(depthA, depthB, config.maxPositionSize);
 
       const signal: Signal = {
-        id: `arb-${now}-${pairKey}`,
+        id: `arb-${now}-${this.signalCounter++}-${pairKey}`,
         strategyName: this.name,
         type: 'YES_NO_ARB',
         timestamp: now,

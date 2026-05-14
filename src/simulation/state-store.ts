@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
-import type { Fill } from '../types/strategy.js';
-import type { Signal } from '../types/strategy.js';
+import type { Fill, Signal } from '../types/strategy.js';
 import type { PnLSnapshot, DailyStats } from '../types/simulation.js';
 import { config } from '../config.js';
 
@@ -68,7 +67,7 @@ export class StateStore {
   /** Insert a trading signal */
   saveSignal(signal: Signal): void {
     const stmt = this.db.prepare(`
-      INSERT OR IGNORE INTO signals
+      INSERT OR REPLACE INTO signals
         (id, strategy_name, type, token_a, token_b, ask_a, ask_b,
          total_cost, gross_profit, net_profit, depth_a, depth_b, max_size, timestamp)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -110,16 +109,40 @@ export class StateStore {
     stmt.run(stats.date, stats.tradeCount, stats.volume, stats.grossProfit, stats.netProfit, stats.winRate);
   }
 
-  /** Persist a PnL snapshot as daily stats */
-  persistSnapshot(snapshot: PnLSnapshot): void {
+  /** Persist a PnL snapshot as daily stats — uses only today's trades as delta */
+  persistSnapshot(_snapshot: PnLSnapshot): void {
     const today = new Date().toISOString().slice(0, 10);
+    const startOfDay = new Date(`${today}T00:00:00.000Z`).getTime();
+
+    const rows = this.db.prepare(`
+      SELECT price_a, price_b, size, fee_a, fee_b FROM trades
+      WHERE timestamp >= ?
+    `).all(startOfDay) as Array<{ price_a: number; price_b: number; size: number; fee_a: number; fee_b: number }>;
+
+    if (rows.length === 0) return;
+
+    let tradeCount = 0;
+    let volume = 0;
+    let grossProfit = 0;
+    let netProfit = 0;
+    let wins = 0;
+
+    for (const row of rows) {
+      tradeCount++;
+      volume += row.size;
+      grossProfit += row.size - row.price_a - row.price_b;
+      const pnL = row.size * 1.0 - (row.price_a + row.price_b + row.fee_a + row.fee_b);
+      netProfit += pnL;
+      if (pnL > 0) wins++;
+    }
+
     this.saveDailyStats({
       date: today,
-      tradeCount: snapshot.totalTrades,
-      volume: snapshot.totalVolume,
-      grossProfit: snapshot.grossProfit,
-      netProfit: snapshot.netProfit,
-      winRate: snapshot.winRate,
+      tradeCount,
+      volume,
+      grossProfit,
+      netProfit,
+      winRate: wins / tradeCount,
     });
   }
 

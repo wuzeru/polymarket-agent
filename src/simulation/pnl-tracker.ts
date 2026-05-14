@@ -14,7 +14,7 @@ export class PnLTracker {
   /** Record a completed fill and update statistics */
   record(fill: Fill): void {
     // Net PnL for this trade: gross input - total cost - fees
-    // Each YES/NO pair resolves to 1.0 at settlement
+    // Each YES+NO pair resolves to 1.0 at settlement (only YES_NO_ARB signals here)
     const grossInput = fill.size * 1.0;
     const totalCost = fill.priceA + fill.priceB + fill.feeA + fill.feeB;
     const netPnL = grossInput - totalCost;
